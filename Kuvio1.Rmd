@@ -5,7 +5,7 @@
 # Lasketaan selittävien muuttujien korrelaatiomatriisi ja piirretään se
 # ggplot2:lla lämpökarttana (sininen = positiivinen, oranssi = negatiivinen).
 
-```{r kuviocor, echo=FALSE,fig.width=16, fig.height=16, out.width="100%",fig.align='center', fig.cap='Aineiston selittävien muuttujien väliset korrelaatiot. Tumman sinisellä esitetään vahva positiivinen korrelaatio ja tumman punaisella esitetään vahva negatiivinen korrelaatio.'}
+```{r Kuvio 1, echo=FALSE,fig.width=16, fig.height=16, out.width="100%",fig.align='center', fig.cap='Aineiston selittävien muuttujien väliset korrelaatiot. Tumman sinisellä esitetään vahva positiivinen korrelaatio ja tumman punaisella esitetään vahva negatiivinen korrelaatio.'}
 set.seed(1)
 data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
 
