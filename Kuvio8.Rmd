@@ -1,0 +1,98 @@
+## ----Kuvio 8, fig.cap='Satunnaismetsän laukutusvirheet: Vaaka-akselilla puiden lukumäärä ja pystyakselilla laukutusvirhe. Mustalla koko aineiston kokonaislaukutusvirhe (OOB), punaisella, sinisellä ja vihreällä luokkakohtaiset laukutusvirheet', fig.align='center'----
+
+# Piirretään OOB-virheen kehitys puiden lukumäärän funktiona
+# (kokonaisvirhe ja luokkakohtaiset virheet), jotta nähdään metsän suppeneminen.
+
+set.seed(1)
+data <- as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+dataAnalysis <- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length, Skin_ATcm, Skin_ATmm, Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+form = as.formula(paste("Group~", paste(names(dataAnalysis[,1:21]), collapse="+")))
+RF.fit <- randomForest(form,
+                       ntree = 2000,
+                       mtry = sqrt(length(dataAnalysis)),
+                       importance = TRUE,
+                       keep.forest = TRUE,
+                       prox = TRUE,
+                       data = dataAnalysis)
+
+# 1. Poimitaan virheet satunnaismetsämallista data frameksi
+err_df <- as.data.frame(RF.fit$err.rate) %>%
+  mutate(Tree = 1:n()) %>%
+  pivot_longer(cols = -Tree,
+               names_to = "Luokka",
+               values_to = "Virhe")
+
+# 2. Piirretään kaavio saavutettavalla muotoilulla
+ggplot(err_df, aes(x = Tree, y = Virhe, color = Luokka, linetype = Luokka)) +
+  geom_line(linewidth = 0.8) +
+  scale_color_manual(
+    values = c("OOB" = "#000000",
+               "1"   = "#D55E00",
+               "2"   = "#0072B2",
+               "3"   = "#009E73"),
+    labels = c("OOB" = "Kokonaislaukutusvirhe (OOB)",
+               "1"   = "Terve",
+               "2"   = "Tendinopatia",
+               "3"   = "Repeämä")
+  ) +
+  scale_linetype_manual(
+    values = c("OOB" = "solid",
+               "1"   = "dashed",
+               "2"   = "dotted",
+               "3"   = "dotdash"),
+    labels = c("OOB" = "Kokonaislaukutusvirhe (OOB)",
+               "1"   = "Terve",
+               "2"   = "Tendinopatia",
+               "3"   = "Repeämä")
+  ) +
+  labs(
+    x = "Puiden lukumäärä",
+    y = "Laukutusvirhe",
+    color = "Virhelaji",
+    linetype = "Virhelaji"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = c(0.98, 0.98),
+    legend.justification = c(1, 1),
+    legend.background = element_rect(fill = alpha("white", 0.85), color = "gray80", linewidth = 0.3),
+    legend.key.width = unit(1.2, "cm"),
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold")
+  )
+
