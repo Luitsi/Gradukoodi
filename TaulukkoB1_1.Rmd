@@ -1,0 +1,117 @@
+## ----Taulukko B 1.1, echo=FALSE, message=FALSE, warning=FALSE----
+
+# Liitteen merkintätaulukko: tribble-taulukossa määritellään tutkielman
+# matemaattiset merkinnät ja niiden selitykset (päätöspuut, satunnaismetsä,
+# osittaisriippuvuus). Tulostetaan longtablena, jotta se voi jatkua usealle sivulle.
+
+
+muuttujatiedot <- tibble::tribble(
+  ~Muuttuja, ~Selitys,
+  # Yleiset merkinnät ja aineisto
+  "N", "Aineiston koko",
+  "n", "Osa-aineiston havaintojen määrä",
+  "p", "Selittävien muuttujien (piirteiden) lukumäärä",
+  "\\mathbf{Z}", "Havaintomatriisi eli opetusdata.",
+  "\\mathbf{x}", "Piirrevektori",
+  "x_j", "Piirrevektorin $\\mathbf{x}$ $j$:s piirre",
+  "\\mathbf{x}_i", "Havaittu $i$ piirrevektori",
+  "x_{ij}", "Havainnon $i$ piirteen $j$ arvo",
+  "\\mathbf{X}", "Satunnainen piirrevektori",
+  "Y", "Vastemuuttuja",
+  "y_i", "Havainnon $i$ vaste",
+  "I(\\cdot)", "Indikaattorifunktio",
+  "f(\\mathbf{x})", "Ennustefunktio",
+  # Päätöspuu (luku 3)
+  "j", "Jakomuuttujan indeksi",
+  "s", "Jakopiste",
+  "R_1(j,s),\\, R_2(j,s)", "Jakomuuttujan $j$ ja jakopisteen $s$ määräämät puolitasot",
+  "M", "Päätösalueiden (lehtien) määrä",
+  "m", "Indeksi, joka yksilöi tietyn yksittäisen alueen tai solmun",
+  "R_m", "Päätösalue (lehti)",
+  "c_m", "Vakioennuste alueella $R_m$",
+  "\\hat{c}_m", "Estimoitu vakioennuste: $y_i$:n keskiarvo alueella $R_m$",
+  "N_m", "Havaintojen määrä päätösalueella $R_m$",
+  "T", "Päätöspuu",
+  "|T|", "Päätesolmujen (lehtien) lukumäärä",
+  "T_0", "Täysi päätöspuu",
+  "\\alpha", "Tuunausparametri (hyperparametri), joka säätelee puun kokoa",
+  "T_\\alpha", "Karsittu päätöspuu, joka minimoi kriteerin $C_\\alpha(T)$",
+  "C_\\alpha(T)", "Kustannus-monimutkaisuus-kriteeri",
+  "T_{\\hat{\\alpha}}", "Mallipuu: ristiinvalidoinnilla valitulla hyperparametrin $\\hat{\\alpha}$ arvolla karsittu puu",
+  "Q_m(T)", "Solmun $m$ epäpuhtausmitta; regressiossa neliövirheen keskiarvo.",
+  "V", "Ristiinvalidoinnin osien lukumäärä",
+  "v", "Ristiinvalidoinnin osan indeksi",
+  "K", "Vasteen luokkien määrä",
+  "k", "Luokan indeksi",
+  "N_k", "Luokan $k$ havaintojen lukumäärä",
+  "\\hat{p}_{mk}", "Luokan $k$ havaintojen osuus solmussa $m$",
+  "k(m)", "Solmun $m$ enemmistöluokka.",
+  "E_m", "Luokitteluvirhe solmussa $m$",
+  "G_m", "Gini-indeksi",
+  "H_m", "Ristientropia",
+  "\\pi", "Toisen luokan osuus solmussa kahden luokan tapauksessa.",
+  # Satunnaismetsä (luku 4)
+  "B", "Puiden (uusio-otosten) lukumäärä",
+  "b", "Puun indeksi, $b=1,\\dots,B$",
+  "\\Theta", "Puukohtainen satunnaisvektori",
+  "\\Theta_b", "$b$:nnen puun kasvatusta ohjaava satunnaisvektori",
+  "h(\\mathbf{x},\\Theta)", "Satunnainen puu eli yksittäinen luokittelija",
+  "h_b(\\mathbf{x})", "$b$:s luokittelija",
+  "\\{h(\\mathbf{x},\\Theta_b)\\}", "Satunnaismetsä: joukko satunnaispuita",
+  "mg(Y,\\mathbf{X})", "Marginaalifunktio luokittelijoille $h_1,\\dots,h_B$ (ääniosuuksien erotus)",
+  "mr(Y,\\mathbf{X})", "Satunnaismetsän marginaalifunktio",
+  "\\hat{k}(Y,\\mathbf{X})", "Oikean luokan $Y$ jälkeen eniten ääniä saava luokka.",
+  "rmg(\\Theta,Y,\\mathbf{X})", "Raakamarginaalifunktio",
+  "PE^*", "Yleistysvirhe",
+  "t", "Voimakkuus.",
+  "\\mu_\\Theta", "Raakamarginaalin odotusarvo.",
+  "\\sigma_\\Theta", "Raakamarginaalin keskihajonta.",
+  "\\rho(\\Theta,\\Theta')", "Raakamarginaalien välinen korrelaatio.",
+  "\\bar{\\rho}", "Korrelaation keskiarvo",
+  "\\operatorname{Var}(mr)", "Satunnaismetsän marginaalifunktion varianssi",
+  "\\hat{t},\\, \\hat{\\bar{\\rho}}", "Voimakkuuden ja korrelaation keskiarvon estimaatit",
+  "\\bar{\\rho}/t^2", "Satunnaismetsän toiminnan ymmärtämistä mittaava suhde.",
+  "q", "Jokaisessa jaossa satunnaisesti valittavien ehdokaspiirteiden lukumäärä (oletus $\\lfloor\\sqrt{p}\\rfloor$)",
+  "N'", "Uusio-otoksen koko",
+  "n_{min}", "Solmun minimikoko",
+  "Z_b^*", "$b$:nnen puun uusio-otos aineistosta $Z$",
+  "T_b", "Satunnaismetsän $b$:s puu",
+  "\\hat{h}^{r}(\\mathbf{x})", "Satunnaismetsäennuste jatkuvalle vasteelle.",
+  "\\hat{h}^{c}(\\mathbf{x})", "Satunnaismetsäennuste luokka-asteikolliselle vasteelle.",
+  "C_i", "Niiden puiden indeksien joukko, joiden opetusaineistoon havainto $i$ ei kuulunut; $|C_i|$ on niiden lukumäärä",
+  "mr_{oob}(y_i,\\mathbf{x}_i)", "Havainnon $i$ OOB-marginaali.",
+  "ERR_{oob}", "Laukutusvirhe (OOB-virhe)",
+  "n_k","Tarkasteltavien havaintojen lukumäärä luokkaa $k$ kohti",
+  "ERR_k", "Luokkakohtaiset laukutusvirheet",
+  "BACC", "Tasapainotettu tarkkuus.",
+  # Osittaisriippuvuus (luku 4)
+  "\\mathbf{x}_S", "Tarkasteltava muuttuja",
+  "\\mathbf{x}_C,\\, \\mathbf{x}_{i,C}", "Muut muuttujat; havainnon $i$ arvot niille",
+  "\\bar{f}(\\mathbf{x}_S)", "Osittaisriippuvuusfunktio.",
+  "p_k(\\mathbf{x})", "Luokan $k$ osuus metsän äänistä.",
+  "f_k(\\mathbf{x})", "Luokan $k$ log-osuus keskiarvoon verrattuna.",
+  "\\tilde{p}_k(\\mathbf{x}_S)", "Softmax-muunnos osittaisriippuvuudesta."
+)
+
+# Muutetaan Muuttuja-sarakkeen arvot LaTeX-matematiikkatilaan
+muuttujatiedot_clean <- muuttujatiedot %>%
+  mutate(Muuttuja = paste0("$", Muuttuja, "$"))
+
+muuttujatiedot_clean %>%
+  kbl(
+    caption = "Merkinnät ja niiden selitykset",
+    booktabs = TRUE,
+    format = "latex",
+    longtable = TRUE,
+    col.names = c("Merkintä", "Selitys"),
+    align = "l",
+    escape = FALSE
+  ) %>%
+  kable_styling(
+    latex_options = c("repeat_header", "scale_down"),
+    repeat_header_text = "\\textit{(jatkuu)}",
+    font_size = 10
+  ) %>%
+  column_spec(1, width = "4cm") %>%
+  column_spec(2, width = "10cm")
+
