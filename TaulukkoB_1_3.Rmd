@@ -1,0 +1,141 @@
+## ----Taulukko B 1.3, echo=FALSE, message=FALSE, warning=FALSE----
+
+# Sama kuin edellinen, mutta tasoitetulle satunnaismetsälle:
+# virheet eri n_k- ja q-yhdistelmillä. Longtable-muoto sallii sivunvaihdon.
+
+
+
+balansoitu_data <- readRDS("balansoitu_tulokset.rds")
+
+
+tuning_balansoitu <- balansoitu_data$tuning
+
+# 3. Tulostetaan longtable-muodossa
+kable(tuning_balansoitu,
+      format = "latex",
+      booktabs = TRUE,
+      longtable = TRUE,       # <-- Tämä tekee taulukosta pitkän (jakaantuu tarvittaessa sivuille)
+      digits = 3,
+      escape=FALSE,
+      col.names = c("$n_k$","$q$", "Laukutusvirhe", "Terve", "Tendinopatia", "Repeämä"),
+      caption = "Tasoitetun satunnaismetsän keskimääräiset virheet eri tarkasteltavien havaintojen $n_k$ ja piirteiden m lukumäärillä (100 ajoa yhteensä).")%>%
+  kable_styling(
+    latex_options = c("repeat_header", "scale_down"), # <-- Toistaa otsikon automaattisesti seuraavan sivun alussa
+    repeat_header_text = "\\textit{(jatkuu)}",
+    font_size = 10
+  )
+
+#Aja alla oleva funktio eka:
+
+
+#Tulostaa yli 100 seedin keskiarvo eri MTRY -luvuilla.
+p_max <- 21
+n_seeds <- 100
+samp_koot <- c(5, 8, 10, 13)
+
+# Tiedostonimi tallennusta varten
+tiedosto_balansoitu <- "balansoitu_tulokset.rds"
+
+if (file.exists(tiedosto_balansoitu)) {
+  cat("Ladataan tallennetut balansoidun mallin tulokset levyltä...\n")
+  tallennettu_balansoitu <- readRDS(tiedosto_balansoitu)
+  
+  tulokset_kaikki_balansoitu <- tallennettu_balansoitu$virheet
+  kaikki_konfuusiot_lista_balansoitu <- tallennettu_balansoitu$konfuusiot
+  tuning_taulukko2 <- tallennettu_balansoitu$tuning
+  keskiarvo_konfuusiot2 <- tallennettu_balansoitu$keskiarvo_konf
+  
+  cat("Balansoidun mallin tulokset ladattu onnistuneesti!\n")
+  
+} else {
+  cat("Tallennettua tiedostoa ei löytynyt. Ajetaan balansoidun mallin simulaatio...\n")
+  
+  tulokset_kaikki_balansoitu <- data.frame()
+  kaikki_konfuusiot_lista_balansoitu <- list()
+  
+  aloitusaika <- Sys.time()
+  cat("Balansoidun mallin simulaatio aloitettu:", as.character(aloitusaika), "\n")
+  
+  for (s_size in samp_koot) {
+    cat("Käsitellään sampsize =", s_size, "\n")
+    
+    for (k in 1:n_seeds) {
+      set.seed(k)
+      
+      for (m in 1:p_max) {
+        luokkien_maara <- nlevels(as.factor(dataAnalysis$Group))
+        s_vektori <- rep(s_size, luokkien_maara)
+        
+        rf_model <- randomForest(formB,
+                                 data = dataAnalysis,
+                                 ntree = 2000,
+                                 mtry = m,
+                                 importance = TRUE,
+                                 keep.forest = TRUE,
+                                 prox = TRUE,
+                                 sampsize = s_vektori,
+                                 strata = dataAnalysis$Group)
+        
+        viimeinen_rivi <- rf_model$err.rate[2000, ]
+        oob_error <- viimeinen_rivi[1]
+        class_errors <- viimeinen_rivi[-1]
+        
+        temp_df <- data.frame(
+          SampSize = s_size,
+          Seed = k,
+          Mtry = m,
+          OOB_Error = oob_error
+        )
+        
+        for(c_idx in seq_along(class_errors)) {
+          temp_df[paste0("Class_Error_", c_idx)] <- class_errors[c_idx]
+        }
+        
+        tulokset_kaikki_balansoitu <- rbind(tulokset_kaikki_balansoitu, temp_df)
+        
+        conf_matrix <- rf_model$confusion[, -ncol(rf_model$confusion)]
+        avaimen_nimi <- paste0("s_", s_size, "_seed_", k, "_mtry_", m)
+        kaikki_konfuusiot_lista_balansoitu[[avaimen_nimi]] <- conf_matrix
+      }
+    }
+  }
+  
+  lopetusaika <- Sys.time()
+  cat("Balansoidun mallin ajo valmis! Kulunut aika:", format(lopetusaika - aloitusaika), "\n")
+  
+  # Tuning-taulukko
+  tuning_taulukko2 <- tulokset_kaikki_balansoitu %>%
+    group_by(SampSize, Mtry) %>%
+    summarise(
+      Mean_OOB_Error = mean(OOB_Error),
+      Mean_Class1_Error = mean(Class_Error_1, na.rm = TRUE),
+      Mean_Class2_Error = mean(Class_Error_2, na.rm = TRUE),
+      Mean_Class3_Error = mean(Class_Error_3, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Keskiarvostetut sekaannusmatriisit
+  keskiarvo_konfuusiot2 <- list()
+  for (s_size in samp_koot) {
+    for (m in 1:p_max) {
+      matriisit_tassa <- list()
+      for (k in 1:n_seeds) {
+        avaimen_nimi <- paste0("s_", s_size, "_seed_", k, "_mtry_", m)
+        matriisit_tassa[[k]] <- kaikki_konfuusiot_lista_balansoitu[[avaimen_nimi]]
+      }
+      keskiarvo_matriisi <- Reduce("+", matriisit_tassa) / n_seeds
+      tulos_nimi <- paste0("sampsize_", s_size, "_mtry_", m)
+      keskiarvo_konfuusiot2[[tulos_nimi]] <- keskiarvo_matriisi
+    }
+  }
+  
+  # Tallennetaan levylle
+  saveRDS(list(
+    virheet = tulokset_kaikki_balansoitu,
+    konfuusiot = kaikki_konfuusiot_lista_balansoitu,
+    tuning = tuning_taulukko2,
+    keskiarvo_konf = keskiarvo_konfuusiot2
+  ), file = tiedosto_balansoitu)
+  cat("Balansoidun mallin tulokset tallennettu tiedostoon:", tiedosto_balansoitu, "\n")
+}
+
