@@ -1,0 +1,73 @@
+## ----Taulukko 1, echo=FALSE, message=FALSE, warning=FALSE----
+
+```{r muuttujataulukko, echo=FALSE, message=FALSE, warning=FALSE}
+# Muuttujien nimet ja selitykset on määritelty taulukkoa varten.
+# LaTeX-erikoismerkit (_ ja %) on suojattu ennen taulukon tulostusta.
+# Taulukko tulostetaan kableExtra-paketilla LaTeX-muotoon.
+
+muuttujatiedot <- data.frame(
+  Muuttuja = c(
+    "ID", "Gender", "Age", "Height", "Weight", "BMI",
+    "BF", "MVC", "MG_Area", "LG_Area", "SOL_Area", "AT_Thickness",
+    "MG_subtendon_length", "LG_subtendon_length", "SOL_subtendon_length",
+    "Tibia_length_I", "Tibia_length_O", "Tibial_average",
+    "L_Leg_length", "R_Leg_length", "AT_moment_arm",
+    "Ankle_Cal", "Skin_ATcm", "Foot_moment_arm",
+    "AT_moment_arm_
+    norm_to_tibia", "AT_moment_arm_
+    norm_to_height", "Group"
+  ),
+  Selitys = c(
+    "Tunniste (henkilön koodi)",
+    "Sukupuoli (1 = nainen, 2 = mies)",
+    "Ikä (vuotta)",
+    "Pituus (cm)",
+    "Paino (kg)",
+    "Painoindeksi (kg/$m^2$)",
+    "Rasvaprosentti (%)",
+    "Maksimaalinen isometrinen tahdonalainen supistus (Nm)",
+    "Sisemmän kaksoiskantalihaksen (m. gastrocnemius medialis) poikkipinta-ala ($cm^2$)",
+    "Ulomman kaksoiskantalihaksen (m. gastrocnemius lateralis) poikkipinta-ala ($cm^2$)",
+    "Leveän kantalihaksen (m. soleus) poikkipinta-ala ($cm^2$)",
+    "Akillesjänteen paksuus (cm)",
+    "Sisemmän kaksoiskantalihaksen jänneosan pituus kantaluun reunasta lihaksen ja jänteen väliseen liitokseen(cm)",
+    "Ulomman kaksoiskantalihaksen jänneosan pituus kantaluun reunasta lihaksen ja jänteen väliseen liitokseen (cm)",
+    "Leveän kantalihaksen jänneosan pituus kantaluun reunasta lihaksen ja jänteen väliseen liitokseen (cm)",
+    "Sääriluun pituus mitattuna anatomisesta kuvasta sisäpuolelta (cm)",
+    "Sääriluun pituus mitattuna anatomisesta kuvasta ulkopuolelta (cm)",
+    "Sääriluun pituuksien keskiarvo (cm)",
+    "Vasemman alaraajan pituus: etuyläsuoliluun kärjen (ASIS) ja sisäkehräsen välinen etäisyys (mm)",
+    "Oikean alaraajan pituus: etuyläsuoliluun kärjen (ASIS) ja sisäkehräsen välinen etäisyys (mm)",
+    "Akillesjänteen momenttivarsi: horisontaalinen etäisyys nilkan pyörimiskeskipisteestä akillesjänteen vaikutussuoraan (mm)",
+    "Etäisyys kantaluusta nilkkaan (mm)",
+    "Ultraäänellä mitattu etäisyys iholta akillesjänteen (AT) keskipisteeseen (cm)",
+    "Nilkan rotaatiokeskipisteen ja metatarsaaliakselin välinen etäisyys (mm)",
+    "Normalisoitu akillesjänteen momenttivarren suhde säären pituuteen  ",
+    "Normalisoitu akillesjänteen momenttivarren suhde pituuteen ",
+    "Luokka: 1 = terve, 2 = tendinopatia, 3 = repeämä"
+  )
+)
+muuttujatiedot_clean <- muuttujatiedot %>%
+  mutate(
+    Muuttuja = gsub("_", "\\\\_", Muuttuja),
+    Selitys = gsub("%", "\\\\%", Selitys)
+  )
+
+# Luodaan taulukko paketilla kable
+muuttujatiedot_clean %>%
+  kbl(
+    caption = "Aineiston muuttujat ja niiden selitykset.",
+    booktabs = TRUE,
+    format = "latex",
+    col.names = c("Muuttujan nimi", "Selitys ja mittayksikkö"),
+    align = "l",
+    escape = FALSE  
+  ) %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    font_size = 10
+  ) %>%
+  column_spec(1, width = "4cm") %>%
+  column_spec(2, width = "10cm")
+```
+
