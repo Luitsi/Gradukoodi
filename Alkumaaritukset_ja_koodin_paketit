@@ -1,0 +1,57 @@
+###### ALKUMÄÄRITYKSET #######
+
+# Dokumentin parametrit (projektin nimi, ohjelma, kappalevälit) ja
+# R-koodilohkojen yleiset oletusasetukset: koodia ei näytetä, kuvat keskitetään
+# ja niiden oletuskoko on 7 x 5 tuumaa.
+
+params <-
+list(project = "Pro Gradu -tutkielma", program = "maisteriohjelma",
+    paragraphs = "\\usepackage[skip=12pt]{parskip}")
+
+
+# Globaaleja määrityksiä R-koodilohkoille
+# esim. fig.align = "center" keskistää kaikki kuviot
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = 'center',
+  fig.pos='H',
+  out.width = '80%',     # Oletusleveys tekstialueeseen nähden
+  fig.width = 7,         # Oletusleveys tuumina R:lle
+  fig.height = 5         # Oletuskorkeus tuumina R:lle
+)
+
+
+###### KOODIN PAKETIT ######
+
+# Ladataan kaikki analyysissa, taulukoissa ja kuvioissa tarvittavat paketit
+# (mm. randomForest, caret, pdp, ggplot2, kableExtra, glmnet, e1071, RWeka).
+
+library(knitr)
+library(kableExtra)
+library(caret)
+library("readxl")
+library("corrplot")
+library(GGally)
+library(ggplot2)
+library(tree)
+library(tidyr)
+library(dplyr)
+library(gridExtra)
+library(grid)
+library(ggplotify)
+library(tibble)
+library(MASS)
+library(randomForest)
+library(patchwork)
+library(gt)
+library(scales)
+library(ggpattern)
+library(nnet)
+library(glmnet)
+library(gtsummary)
+library(e1071)   
+library(RWeka)   
+library(pdp)
+
