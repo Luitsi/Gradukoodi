@@ -1,0 +1,81 @@
+## ----Kuvio 1, echo=FALSE,fig.width=16, fig.height=16, out.width="100%",fig.align='center', fig.cap='Aineiston selittävien muuttujien väliset korrelaatiot. Tumman sinisellä esitetään vahva positiivinen korrelaatio ja tumman punaisella esitetään vahva negatiivinen korrelaatio.'----
+
+# Aineiston lukeminen ja esikäsittely.
+# Poistetaan ID, jalkojen pituudet ja Skin_ATmm (päällekkäisiä muuttujia).
+# Lasketaan selittävien muuttujien korrelaatiomatriisi ja piirretään se
+# ggplot2:lla lämpökarttana (sininen = positiivinen, oranssi = negatiivinen).
+
+```{r kuviocor, echo=FALSE,fig.width=16, fig.height=16, out.width="100%",fig.align='center', fig.cap='Aineiston selittävien muuttujien väliset korrelaatiot. Tumman sinisellä esitetään vahva positiivinen korrelaatio ja tumman punaisella esitetään vahva negatiivinen korrelaatio.'}
+set.seed(1)
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+dataNew<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATmm))
+
+corkuva <- dataNew[,c(-1,-24)]
+corkuva <- as.data.frame(na.omit(corkuva))
+# Määritellään muuttujat ja lasketaan korrelaatiomatriisi
+valitut_muuttujat = c(names(corkuva)[1:22])
+cor_matriisi <- cor(corkuva[, valitut_muuttujat], use = "complete.obs")
+
+# Muunnetaan matriisi ggplot2:lle sopivaan pitkään muotoon
+cor_df <- as.data.frame(cor_matriisi) %>%
+  mutate(Var1 = rownames(.)) %>%
+  pivot_longer(cols = -Var1, names_to = "Var2", values_to = "Korrelaatio")
+
+#  Luodaan ggplot2-objekti
+p1 <- ggplot(cor_df, aes(x = Var1, y = Var2, fill = Korrelaatio)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low = "#E46726",
+    mid = "white",
+    high = "#6D9EC1",
+    midpoint = 0,
+    limit = c(-1, 1),
+    space = "Lab",
+    name = "Korrelaatio",
+    labels = function(x) sprintf("% .1f", x) 
+  ) +
+  scale_y_discrete(limits = rev) +
+  theme_bw(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 14),
+    axis.text.y = element_text(vjust = 1, hjust = 1, size = 14),
+    legend.title = element_text(size = 20, face = "bold", margin = ggplot2::margin(b = 15)),
+    legend.text = element_text(size = 18, family = "mono"),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) +
+  coord_fixed()
+p1
+```
