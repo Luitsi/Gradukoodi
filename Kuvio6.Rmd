@@ -1,0 +1,114 @@
+## ----Kuvio 6,fig.width=11, fig.height=8,fig.fullwidth=TRUE,height="85%", fig.cap='Pylväskaavio satunnaismetsän marginaalifunktiosta. Vaaka-akselilla  havainnot järjestettynä marginaalin arvon mukaan pienimmästä suurimpaan. Pystyakselilla on marginaalin arvo välillä -1 ja 1. Oikein luokitellut havainnot on esitetty punaisilla pylväillä  ja väärin luokitellut sinisellä katkoviivaisilla pylväillä. Harmaalla on korostettu epävarmojen ennusteiden väli.'----
+
+# Sovitetaan satunnaismetsä (2000 puuta) ja lasketaan jokaisen havainnon
+# marginaali, eli oikean luokan ääniosuus miinus parhaan väärän luokan ääniosuus.
+# Piirretään marginaalit suuruusjärjestyksessä pylväskaaviona:
+# oikein luokitellut (plain) ja väärin luokitellut (viivoitettu).
+# Harmaa kaista korostaa epävarmoja ennusteita (marginaali -0.1...0.1).
+
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATcm,Skin_ATmm,Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+form = as.formula(paste("Group~",paste(names(dataAnalysis[,1:21]),collapse="+")))
+
+RF.fit<-randomForest(form,
+             ntree = 2000,
+             mtry = sqrt(length(dataAnalysis[,])),
+             importance = TRUE,
+             keep.forest = TRUE,
+             prox = TRUE,
+             keep.inbag=TRUE,
+             data=dataAnalysis)
+
+
+
+
+# (Oletetaan, että data ja RF.fit on jo ajettu aiemmin...)
+
+# 1. Lasketaan marginaalit
+m <-  randomForest::margin(RF.fit)
+
+# 2. Muonnetaan data ggplot-ystävälliseen muotoon
+df_margin <- data.frame(
+  Margin = as.numeric(m),
+  TrueClass = attr(m, "names")
+) %>%
+  arrange(Margin) %>%
+  mutate(
+    Index = row_number(),
+    Status = ifelse(Margin > 0, "Oikein luokiteltu", "Väärin luokiteltu")
+  )
+
+# 3. Piirretään saavutettava visualisointi (värit + kuviot mustavalko-/värisokeustukea varten)
+ggplot(df_margin, aes(x = Index, y = Margin, fill = Status, pattern = Status)) +
+  # Käytetään geom_col_pattern-funktiota pylväille
+  geom_col_pattern(
+    width = 0.7,
+    color = "black",            # Palkkien reunukset mustiksi
+    pattern_fill = "black",     # Kuvioiden väri
+    pattern_angle = 45,         # Viivojen kulma
+    pattern_density = 0.05,     # Viivojen tiheys
+    pattern_spacing = 0.03,
+    pattern_key_scale_factor = 0.6
+  ) +
+  # Määritetään kuviot: oikein luokitellut yhtenäisiä, väärin luokitellut viivoitettuja ("stripe")
+  scale_pattern_manual(values = c("Oikein luokiteltu" = "none", "Väärin luokiteltu" = "stripe")) +
+  # Värit: käytetään värisokeusystävällistä palettia (sininen ja oranssi/punertava)
+  scale_fill_manual(values = c("Oikein luokiteltu" = "#D55E00", "Väärin luokiteltu" = "#0072B2")) +
+  # Nollaviiva korostamaan rajaa
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.8) +
+  # Kevyt katkoviivaalue epävarmoille ennusteille
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -0.1, ymax = 0.1,
+           fill = "gray80", alpha = 0.3) +
+  scale_y_continuous(limits = c(-1, 1), breaks = seq(-1, 1, by = 0.25)) +
+  labs(
+    x = "Havainto",
+    y = "Marginaali",
+    fill = "Tulos",
+    pattern = "Tulos"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+
