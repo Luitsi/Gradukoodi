@@ -1,0 +1,54 @@
+## ----Kuvio 5, echo = FALSE,fig.width=12, fig.height=10,fig.fullwidth=TRUE,out.width="90%",fig.cap='Tutkimusaineistosta muodostettu luokittelupuu. Juurisolmun ehto jakaa aineiston kahtia ensimmäisenä. Vasen haara vastaa ehdon toteutumisesta ja oikea haara hylkäämisestä. Puu koostuu 5 jakosolmusta ja 6 päätesolmusta. Jaot, jotka eivät muuta ennustettua luokkaa on poistettu havainnoillisuuden vuoksi.', fig.align='left'----
+
+# Sovitetaan luokittelupuu (tree-paketti) kaikilla 21 selittäjällä
+# ja karsitaan puusta solmut 4 ja 6 snip.tree-funktiolla, jotta kuvio on selkeämpi.
+# Puu piirretään base R:n plot- ja text-funktioilla.
+
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3), labels = c("terve","tendinopatia","repeämä"))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATcm,Skin_ATmm,Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+form = as.formula(paste("Group~", paste(names(dataAnalysis[,1:21]),collapse="+")))
+malli_tree <- tree(form, data = dataAnalysis)
+malli_tree_snip <- snip.tree(malli_tree, nodes = c(4L, 6L))
+
+plot(malli_tree_snip, type = "uniform", margin = 0.1)
+text(malli_tree_snip, all = FALSE, pretty = 0, cex = 1.3,
+     adj = c(0.5, 2.75), digits = 2)
+
