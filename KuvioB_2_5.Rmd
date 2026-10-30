@@ -1,0 +1,150 @@
+## ----Kuvio B 2.5, fig.width=8, fig.height=6,fig.fullwidth=TRUE,out.width="80%", fig.cap=kapkt, fig.align='center'----
+
+# AT_Thickness-muuttujan osittaisriippuvuus tavallisessa satunnaismetsässä
+# log-vetosuhdeasteikolla (ei softmax-muunnosta).
+# Näytetään ICE-käyrät, PDP, luokkakeskiarvot ja nollatason leikkauskohta.
+
+
+kapkt <- "Akillesjänteen paksuuden (\\textit{AT\\_Thickness} (cm)) osittaisriippuvuuskuviot tavallisella satunnaismetsämallilla eri luokille. Vaaka-akselilla esitetään tarkasteltava selittävä muuttuja, pystyakselilla $\\log$ -vetosuhteet. Vihreä pisteviiva kuvaa luokan keskiarvoa ja sininen pisteviiva käyrän nollatason leikkauskohtaa. Vaaka-akselilla pystyviivoilla esitetään aineiston desiilit."
+set.seed(1)
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATcm,Skin_ATmm, Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+form = as.formula(paste("Group~",paste(names(dataAnalysis[,1:21]),collapse="+")))
+
+rf<-randomForest(form,
+                     ntree = 2000,
+                     mtry = sqrt(length(dataAnalysis)),
+                     importance = TRUE,
+                     keep.forest = TRUE,
+                     prox = TRUE,
+                     data=dataAnalysis)
+
+# 1. Lasketaan ICE-käyrät pdp-paketilla jokaiselle luokalle k erikseen
+ice_list <- lapply(levels(dataAnalysis$Group), function(k) {
+  res <- pdp::partial(
+    rf,
+    pred.var = "AT_Thickness",
+    train = dataAnalysis,
+    which.class = k,
+    ice = TRUE,
+    plot = FALSE
+  )
+  res$Group <- k
+  return(res)
+})
+
+# Yhdistetään ICE-tulokset yhdeksi taulukoksi
+ice_df <- bind_rows(ice_list)
+ice_df$Group <- factor(ice_df$Group, levels = levels(dataAnalysis$Group))
+
+# 2. Lasketaan keskiarvoinen PDP-käyrä (punainen viiva) ryhmittäin ICE-arvoista
+pdp_df <- ice_df %>%
+  group_by(Group, AT_Thickness) %>%
+  summarise(yhat = mean(yhat), .groups = "drop")
+
+# 3. Lasketaan ryhmäkohtaiset keskiarvot pystyviivoja varten
+mean_vals <- dataAnalysis %>%
+  group_by(Group) %>%
+  summarise(mean_thickness = mean(AT_Thickness, na.rm = TRUE))
+
+mean_vals$Group <- factor(mean_vals$Group, levels = levels(dataAnalysis$Group))
+
+# 4. Lasketaan nollatason (log-odds = 0) leikkauskohta keskiarvokäyrälle x-akselille
+crossing_vals <- pdp_df %>%
+  group_by(Group) %>%
+  reframe({
+    if (0 >= min(yhat) && 0 <= max(yhat)) {
+      sub_data <- data.frame(y = yhat, AT_Thickness = AT_Thickness) %>%
+        distinct(y, .keep_all = TRUE) %>%
+        arrange(y)
+      approx_x <- approx(sub_data$y, sub_data$AT_Thickness, xout = 0)$y
+      data.frame(x_val = approx_x)
+    } else {
+      data.frame(x_val = NA_real_)
+    }
+  }) %>%
+  filter(!is.na(x_val)) %>%
+  mutate(y_val = 0) # Log-odds -asteikolla nollataso on 0
+
+ggplot() +
+  # 1. Yksilötason ICE-käyrät (pehmeämpi harmaa taustalle)
+  geom_line(data = ice_df, aes(x = AT_Thickness, y = yhat, group = yhat.id),
+            color = "grey50", alpha = 0.2, linewidth = 0.4) +
+  # 2. Keskiarvoinen osittaisriippuvuuskaavio (päähuomio punaisella)
+  geom_line(data = pdp_df, aes(x = AT_Thickness, y = yhat),
+            color = "red", linewidth = 1.1) +
+
+    # 3. Harmaa katkoviiva nollatasolle (log-odds = 0)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey60") +
+
+  # 4. Ryhmän keskiarvon pystyviiva (Vaihdettu tummanvihreäksi, jotta ei mene sekaisin punaisen käyrän kanssa)
+  geom_vline(data = mean_vals, aes(xintercept = mean_thickness),
+             color = "darkgreen", linetype = "dotted", linewidth = 1) +
+
+  # 5. Nollatason leikkauskohdan merkinnät (sininen säilytetään omassa roolissaan)
+  geom_segment(data = crossing_vals,
+               aes(x = x_val, xend = x_val, y = y_val, yend = min(ice_df$yhat)),
+               linetype = "dotted", color = "blue", linewidth = 0.8) +
+  geom_point(data = crossing_vals, aes(x = x_val, y = y_val),
+             color = "blue", size = 2) +
+  geom_text(data = crossing_vals,
+            aes(x = x_val, y = min(ice_df$yhat), label = round(x_val, 2)),
+            vjust = 1.5, color = "blue", size = 3.5, fontface = "bold") +
+
+  # Havaintojen desiilit alareunaan
+  geom_rug(data = dataAnalysis, aes(x = AT_Thickness), sides = "b", inherit.aes = FALSE, alpha = 0.4) +
+  scale_x_continuous(breaks = seq(0.4, 1.8, by = 0.2)) +
+  facet_wrap(~ Group, scales = "fixed",
+             labeller = as_labeller(c(
+             "1" = "Terve",
+             "2" = "Tendinopatia",
+             "3" = "Repeämä")))+
+  labs(
+    x = "AT_Thickness (cm)",
+    y = "Osittaisriippuvuus (log-vetosuhde)"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    strip.text = element_text(face = "bold", size = 14),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(size = 11),
+
+    axis.title = element_text(face = "bold", size = 12),
+
+    plot.margin = ggplot2::margin(t = 10, r = 10, b = 20, l = 10)
