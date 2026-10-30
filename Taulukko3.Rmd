@@ -1,0 +1,247 @@
+## ----Taulukko 3,results = 'asis'------------------
+
+# Mallien vertailu toistetulla 10-kertaisella ristiinvalidoinnilla (20 toistoa).
+# Vertailtavat mallit: monitasoinen logistinen regressio, ridge, satunnaismetsät
+# (tavallinen, tasoitettu, pelkkä AT_Thickness, ilman AT_Thicknessia, eri mtry-arvot),
+# ordinaalinen malli, LDA, QDA, SVM:t ja neuroverkko.
+# Lasketaan kokonaisvirhe, luokkakohtaiset virheet ja tasapainotettu tarkkuus (BACC).
+# Satunnaismetsien kohdalla näytetään sulkeissa myös OOB-virhe.
+
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATmm,Tibia_average))
+
+
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+d = dataAnalysis[-17]
+d$Gender <- as.integer(factor(d$Gender))
+
+vars21 <- c("Gender","Age","Height","Weight","BMI","BF","MVC",
+            "MG_Area","LG_Area","SOL_Area","AT_Thickness",
+            "MG_subtendon_length","LG_subtendon_length","SOL_subtendon_length",
+            "Tibia_length_I","Tibia_length_O",
+            "AT_moment_arm","Ankle_Cal","Foot_moment_arm",
+            "AT_Moment_arm_norm_to_tibia","AT_Moment_arm_norm_to_height")
+MLP <- make_Weka_classifier("weka/classifiers/functions/MultilayerPerceptron")
+
+# LDA ja QDA (MASS:: ilman library(MASS), jotta dplyr::select ei peity)
+
+
+
+
+set.seed(42)
+models <- list(
+
+
+    # monitasoinen logistinen regressio pelkällä AT_Thicknessilla
+
+  logit_AT = function(tr, te)
+    predict(multinom(Group ~ AT_Thickness, data = tr, trace = FALSE, maxit = 2000), te),
+
+  # kaikki 21 muuttujaa, ridge-rangaistus (tavallinen multinom hajoaa, kun n = 78)
+  ridge_kaikki = function(tr, te) {
+    x_tr <- as.matrix(tr[, vars21]); m <- colMeans(x_tr); s <- apply(x_tr, 2, sd)
+    x_tr <- scale(x_tr, m, s); x_te <- scale(as.matrix(te[, vars21]), m, s)
+    cv <- cv.glmnet(x_tr, tr$Group, family = "multinomial", alpha = 0,
+                    nfolds = 5, type.measure = "class")
+    factor(predict(cv, x_te, s = "lambda.min", type = "class")[, 1], levels = levels(tr$Group))
+  },
+
+  rf_tav = function(tr, te)
+    predict(randomForest(Group ~ ., data = tr[, c("Group", vars21)], ntree = 2000, mtry = 5), te),
+  #
+  rf_tas = function(tr, te){
+    ss <- min(table(tr$Group))
+    predict(randomForest(Group ~ ., data = tr[, c("Group", vars21)], ntree = 2000, mtry = 5,
+                         strata = tr$Group, sampsize = rep(ss, 3)), te)},
+
+  rf_AT = function(tr, te)
+    predict(randomForest(Group ~ AT_Thickness, data = tr, ntree = 2000, mtry = 1), te),
+
+  rf_eiAT = function(tr, te)
+    predict(randomForest(Group ~ ., data = tr[, c("Group", setdiff(vars21, "AT_Thickness"))],
+                         ntree = 2000, mtry = 5), te)
+)
+
+cv_run <- function(model, rep_id, k = 10) {
+  set.seed(rep_id)
+  folds <- createFolds(d$Group, k = k)
+  pred <- factor(rep(NA, nrow(d)), levels = levels(d$Group))
+  for (f in folds) pred[f] <- model(d[-f, ], d[f, ])
+  pred
+}
+
+metrics <- function(pred, y = d$Group) {
+  rec <- diag(table(y, pred)) / as.numeric(table(y))
+  c(err = mean(pred != y),
+    setNames(1 - rec, paste0("err_", levels(y))),
+    bacc = mean(rec))
+}
+
+
+mk_tas <- function(mt) function(tr, te) {
+  ss <- min(table(tr$Group))
+  predict(randomForest(Group ~ ., data = tr[, c("Group", vars21)], ntree = 2000, mtry = mt,
+                       strata = tr$Group, sampsize = rep(ss, 3)), te)
+}
+models$rf_tas_m10 <- mk_tas(10)
+models$rf_tas_m21 <- mk_tas(21)            # Uusioaggregointi
+
+# järjestysasteikollinen malli (terve < tendino < repeämä)
+models$ordinal_AT <- function(tr, te) {
+  tr2 <- tr; tr2$Group <- factor(tr2$Group, ordered = TRUE)
+  p <- predict(MASS::polr(Group ~ AT_Thickness, data = tr2, Hess = TRUE), te, type = "class")
+  factor(as.character(p), levels = levels(tr$Group))
+}
+
+# riittääkö AT_Thickness vai tuovatko ikä ja Foot_moment_arm lisää
+models$logit_AT_Age_F <- function(tr, te){
+  predict(multinom(Group ~ AT_Thickness + Age + Foot_moment_arm, data = tr, trace = FALSE, maxit = 2000), te)}
+
+
+# apufunktio: varmistaa, että ennusteen tasot ovat samat kuin aineiston
+as_lv <- function(p, tr) factor(as.character(p), levels = levels(tr$Group))
+
+MLP <- make_Weka_classifier("weka/classifiers/functions/MultilayerPerceptron")
+
+# LDA ja QDA (MASS:: ilman library(MASS), jotta dplyr::select ei peity)
+models$lda_AT <- function(tr, te)
+  as_lv(predict(MASS::lda(Group ~ AT_Thickness, data = tr), newdata = te)$class, tr)
+
+models$qda_AT <- function(tr, te)
+  as_lv(predict(MASS::qda(Group ~ AT_Thickness, data = tr), newdata = te)$class, tr)
+
+# SVM
+models$svm_lin_AT <- function(tr, te)
+  as_lv(predict(e1071::svm(Group ~ AT_Thickness, data = tr,
+                           type = "C-classification", kernel = "linear"),
+                newdata = te), tr)
+
+models$svm_pol_AT <- function(tr, te)
+  as_lv(predict(e1071::svm(Group ~ AT_Thickness, data = tr,
+                           type = "C-classification", kernel = "polynomial"),
+                newdata = te), tr)
+
+# Neuroverkot (Weka MLP)
+models$mlp_AT <- function(tr, te)
+  as_lv(predict(MLP(Group ~ AT_Thickness, data = tr,
+                    control = Weka_control(V = 20, S = 1)), newdata = te), tr)
+
+
+tr <- d[-(1:6), ]; te <- d[1:6, ]
+
+library(randomForest)
+library(knitr)
+library(kableExtra)
+
+# (Oletetaan, että d, vars21, models ja cv_run on jo määritetty skriptissäsi)
+
+# Apufunktio: poimitaan satunnaismetsän OOB-virheet samaan muotoon metrics()-funktion kanssa
+oob_metrics <- function(rf, y = d$Group) {
+  ntree_val <- nrow(rf$err.rate)
+  err_overall <- rf$err.rate[ntree_val, 1]
+  class_errs <- rf$err.rate[ntree_val, -1]
+  names(class_errs) <- paste0("err_", levels(y))
+  bacc <- mean(1 - class_errs)
+  c(err = err_overall, class_errs, bacc = bacc)
+}
+
+# Lasketaan OOB-metrikat satunnaismetsille täyden aineiston perusteella
+# set.seed(1) # Toistettavuuden vuoksi
+ss_full <- min(table(d$Group))
+
+oob_list <- list(
+  rf_tav      = oob_metrics(randomForest(Group ~ ., data = d[, c("Group", vars21)], ntree = 2000, mtry = 5)),
+  rf_tas      = oob_metrics(randomForest(Group ~ ., data = d[, c("Group", vars21)], ntree = 2000, mtry = 5, strata = d$Group, sampsize = rep(ss_full, 3))),
+  rf_AT       = oob_metrics(randomForest(Group ~ AT_Thickness, data = d, ntree = 2000, mtry = 1)),
+  rf_eiAT     = oob_metrics(randomForest(Group ~ ., data = d[, c("Group", setdiff(vars21, "AT_Thickness"))], ntree = 2000, mtry = 5)),
+  rf_tas_m10  = oob_metrics(randomForest(Group ~ ., data = d[, c("Group", vars21)], ntree = 2000, mtry = 10, strata = d$Group, sampsize = rep(ss_full, 3))),
+  rf_tas_m21  = oob_metrics(randomForest(Group ~ ., data = d[, c("Group", vars21)], ntree = 2000, mtry = 21, strata = d$Group, sampsize = rep(ss_full, 3)))
+)
+
+# Aiemmat ristiinvalidoinnin ajot
+n_rep <- 20
+res <- lapply(models, function(m) t(sapply(1:n_rep, function(r) metrics(cv_run(m, r)))))
+summ <- t(sapply(res, function(x) c(colMeans(x))))
+rownames(summ) <- names(models)
+
+# Muunnetaan summ-taulukko merkkijonotaulukoksi, jossa RF-mallien kohdalla on (OOB)
+summ_formatted <- matrix("", nrow = nrow(summ), ncol = ncol(summ))
+rownames(summ_formatted) <- rownames(summ)
+colnames(summ_formatted) <- colnames(summ)
+
+for (i in rownames(summ)) {
+  if (i %in% names(oob_list)) {
+    cv_vals <- summ[i, ]
+    oob_vals <- oob_list[[i]]
+    for (j in seq_along(cv_vals)) {
+      summ_formatted[i, j] <- sprintf("%.3f (%.3f)", cv_vals[j], oob_vals[j])
+    }
+  } else {
+    for (j in seq_along(summ[i, ])) {
+      summ_formatted[i, j] <- sprintf("%.3f", summ[i, j])
+    }
+  }
+}
+
+
+# Muutetaan taulukko data.frameksi ja nostetaan rivinimet omaksi "Malli"-sarakkeekseen
+df_print <- as.data.frame(summ_formatted)
+df_print <- tibble::rownames_to_column(df_print, var = "Malli")
+
+# Korvataan mallien nimien alaviivat LaTeX-turvallisilla alaviivoilla (\_)
+df_print$Malli <- gsub("_", "\\\\_", df_print$Malli)
+
+# Tulostus LaTeX-taulukkona
+df_print %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    escape = FALSE,
+    caption = "Toistetun 10-kertaisen ristiinvalidoinnin tulokset, kun toistojen määrä on 20. Satunnaismetsämalleilla suluissa on esitetty vastaava (laukutus)virhe täydestä aineistosta.",
+    col.names = c("Malli", "Virhe", "Terve", "Tendinopatia", "Repeämä", "BACC")
+  ) %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    position = "left",
+    full_width = FALSE
+  )
+
