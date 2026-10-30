@@ -1,0 +1,83 @@
+## ----taulukko 2, echo=FALSE, message=FALSE, warning=FALSE----
+
+# Luetaan aineisto Excelistä, nimetään sarakkeet ja koodataan luokat uudelleen:
+# 0/1/2 -> 1/2/3 (terve/tendinopatia/repeämä).
+# Sukupuoli ja luokka muutetaan faktoreiksi.
+# Tehdään luokittain kuvaileva yhteenvetotaulukko (keskiarvo ja keskihajonta,
+# jatkuville muuttujille; lukumäärä ja prosentti, kategorisille) gtsummaryllä.
+
+```{r taulukko 2, echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(1)
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Sukupuoli"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Luokka" #Terve, Tendino, repeämä
+
+
+data$Luokka[data$Luokka == '2'] = 3
+data$Luokka[data$Luokka == '1'] = 2
+data$Luokka[data$Luokka == '0'] = 1
+
+data$Sukupuoli = factor(data$Sukupuoli, levels = c(1,2), labels=c("Nainen","Mies"))
+data$Luokka = factor(data$Luokka, levels = c(1,2,3), labels=c("terve","tendinopatia","repeämä"))
+
+# Alla valitaan datasta havainnot, jotka ei ole puuttuvia, kuitenkin pitämällä kaikki havainnot aineistossa.
+# Skin_ATmm on löytyy myös cm, niin jätetään mm -mittayksikössä oleva muuttuja pois.
+data %>%
+  select(-c(ID,Skin_ATmm)) %>%
+  tbl_summary(
+    by = Luokka,
+    missing = "no",
+    statistic = list(
+      all_continuous()  ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p} %)"
+    ),
+    digits = all_continuous() ~ 2
+  ) %>%
+
+  modify_header(
+    label = "**Muuttuja**",
+    stat_1 = "terve (*n* = {n})",
+    stat_2 = "tendinopatia (*n* = {n})",
+    stat_3 = "repeämä (*n* = {n})"
+  ) %>%
+  modify_footnote(everything() ~ NA) %>%
+
+  # Hieman muotoilua kablen omilla työkaluilla
+  as_kable_extra(
+    booktabs = TRUE,
+    longtable = TRUE,
+    caption = "Kuvailevat tunnusluvut jänteen terveyden mukaan ryhmittäin: Sarakkeilla esitellään luokat ja riveillä esitetään muuttujien tunnuslukuja."
+  ) %>%
+  kable_styling(
+    latex_options = c("scale_down"),
+    repeat_header_text = "\\textit{(jatkuu)}",
+    font_size = 10,
+    position = "center"
+  ) %>%
+ footnote(
+  general = "\\\\textit{n} (\\\\%); Keskiarvo (keskihajonta)",
+  general_title = "",
+  escape = FALSE,
+  threeparttable = TRUE
+)
+```
