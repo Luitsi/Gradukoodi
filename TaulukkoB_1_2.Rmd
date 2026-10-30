@@ -1,0 +1,127 @@
+## ----Taulukko B 1.2, echo=FALSE, message=FALSE, warning=FALSE----
+
+# Luetaan tallennetut (.rds) tavallisen satunnaismetsän tuning-tulokset
+# ja tulostetaan niistä taulukko: virheet eri q-arvoilla (100 ajon keskiarvot).
+
+# 1. Ladataan tiedostot levyltä (varmista, että .rds-tiedostot ovat samassa kansiossa .Rmd-tiedoston kanssa)
+perus_data <- readRDS("perusmalli_tulokset.rds")
+
+# 2. Poimitaan tuning-taulukot muuttujiin
+tuning_perus <- perus_data$tuning
+
+# 3. Tulostetaan perusmallin taulukko LaTeX-muodossa booktabsilla
+kable(tuning_perus,
+      format = "latex",
+      booktabs = TRUE,
+      digits = 3,
+      escape=FALSE,
+      col.names = c("$q$", "Laukutusvirhe", "Terve", "Tendinopatia", "Repeämä"),
+      caption = "Tavallisen satunnaismetsän keskimääräiset virheet eri piirteiden lukumäärän $q$ arvoilla (100 ajoa yhteensä).")%>%
+  kable_styling(
+    latex_options = c("repeat_header", "scale_down"), # <-- Toistaa otsikon automaattisesti seuraavan sivun alussa
+    repeat_header_text = "\\textit{(jatkuu)}",
+    font_size = 10
+  )
+
+
+
+
+# Jos niitä ei löydy, niin alla oleva funktio pitää ajaa
+formB = as.formula(paste("Group~",paste(names(dataAnalysis[,-17]),collapse="+")))
+p_max <- 21
+n_seeds <- 100
+
+# Tiedostonimi tallennusta varten
+tiedosto_perus <- "perusmalli_tulokset.rds"
+
+# Tarkistetaan, onko tulokset jo ajettu ja tallennettu aiemmin
+if (file.exists(tiedosto_perus)) {
+  cat("Ladataan tallennetut perusmallin tulokset levyltä...\n")
+  tallennettu_perus <- readRDS(tiedosto_perus)
+  
+  tulokset_virheet_perus <- tallennettu_perus$virheet
+  kaikki_konfuusiot_perus <- tallennettu_perus$konfuusiot
+  tuning_taulukko_perus <- tallennettu_perus$tuning
+  keskiarvo_konfuusiot_perus <- tallennettu_perus$keskiarvo_konf
+  
+  cat("Perusmallin tulokset ladattu onnistuneesti!\n")
+  
+} else {
+  cat("Tallennettua tiedostoa ei löytynyt. Ajetaan perusmallin simulaatio...\n")
+  
+  tulokset_virheet_perus <- data.frame()
+  kaikki_konfuusiot_perus <- list()
+  
+  aloitusaika <- Sys.time()
+  cat("Perusmallin ajastus aloitettu:", as.character(aloitusaika), "\n")
+  
+  for (k in 1:n_seeds) {
+    set.seed(k)
+    
+    for (m in 1:p_max) {
+      rf_naive <- randomForest(formB,
+                               data = dataAnalysis,
+                               ntree = 2000,
+                               mtry = m,
+                               importance = TRUE,
+                               keep.forest = TRUE,
+                               prox = TRUE)
+      
+      viimeinen_rivi <- rf_naive$err.rate[2000, ]
+      oob_error <- viimeinen_rivi[1]
+      class_errors <- viimeinen_rivi[-1]
+      
+      temp_df <- data.frame(
+        Seed = k,
+        Mtry = m,
+        OOB_Error = oob_error
+      )
+      
+      for(c_idx in seq_along(class_errors)) {
+        temp_df[paste0("Class_Error_", c_idx)] <- class_errors[c_idx]
+      }
+      
+      tulokset_virheet_perus <- rbind(tulokset_virheet_perus, temp_df)
+      
+      conf_matrix <- rf_naive$confusion[, -ncol(rf_naive$confusion)]
+      avaimen_nimi <- paste0("seed_", k, "_mtry_", m)
+      kaikki_konfuusiot_perus[[avaimen_nimi]] <- conf_matrix
+    }
+  }
+  
+  lopetusaika <- Sys.time()
+  cat("Perusmallin ajo valmis! Kulunut aika:", format(lopetusaika - aloitusaika), "\n")
+  
+  # Tuning-taulukko
+  tuning_taulukko_perus <- tulokset_virheet_perus %>%
+    group_by(Mtry) %>%
+    summarise(
+      Mean_OOB_Error = mean(OOB_Error),
+      Mean_Class1_Error = mean(Class_Error_1, na.rm = TRUE),
+      Mean_Class2_Error = mean(Class_Error_2, na.rm = TRUE),
+      Mean_Class3_Error = mean(Class_Error_3, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Keskiarvostetut sekaannusmatriisit
+  keskiarvo_konfuusiot_perus <- list()
+  for (m in 1:p_max) {
+    matriisit_tassa <- list()
+    for (k in 1:n_seeds) {
+      avaimen_nimi <- paste0("seed_", k, "_mtry_", m)
+      matriisit_tassa[[k]] <- kaikki_konfuusiot_perus[[avaimen_nimi]]
+    }
+    keskiarvo_matriisi <- Reduce("+", matriisit_tassa) / n_seeds
+    keskiarvo_konfuusiot_perus[[paste0("mtry_", m)]] <- keskiarvo_matriisi
+  }
+  
+  # Tallennetaan levylle tulevia kertoja varten
+  saveRDS(list(
+    virheet = tulokset_virheet_perus,
+    konfuusiot = kaikki_konfuusiot_perus,
+    tuning = tuning_taulukko_perus,
+    keskiarvo_konf = keskiarvo_konfuusiot_perus
+  ), file = tiedosto_perus)
+  cat("Perusmallin tulokset tallennettu tiedostoon:", tiedosto_perus, "\n")
+}
+
