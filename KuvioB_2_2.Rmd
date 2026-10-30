@@ -1,0 +1,83 @@
+## ----Kuvio B 2.2,fig.cap='Tavallisen satunnnaismetsän muuttujien tärkeystarkastelu, kun akillesjänteen paksuus (\\textit{AT\\_Thickness}) on korvattu ihon ja akillesjänteen välisellä etäisyydellä (\\textit{Skin\\_ATcm}). Vaaka-akselilla esitetään keskimääräinen tarkkuuden lasku ja pystyakselilla esitetään muuttujat.', fig.align='center', echo=FALSE, message=FALSE, warning=FALSE----
+# Muuttujien tärkeys edellisessä mallissa (Skin_ATcm mukana,
+# AT_Thickness poissa).
+
+set.seed(1)
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATmm, Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+form = as.formula(paste("Group~",paste(names(dataAnalysis[,c(1:10,12:21)]),collapse="+")))
+RF.fit<-randomForest(form,
+                     ntree = 2000,
+                     mtry = sqrt(length(dataAnalysis[,c(-11)])),
+                     importance = TRUE,
+                     keep.forest = TRUE,
+                     prox = TRUE,
+                     data=dataAnalysis[,c(-11)])
+
+
+# 1. Haetaan tärkeysarvot mallista (type = 2 vastaa MeanDecreaseGiniä)
+imp_df <- as.data.frame(importance(RF.fit, type = 1))
+imp_df$Variable <- rownames(imp_df)
+colnames(imp_df)[1] <- "Importance"
+
+# 2. Järjestetään muuttujat nousevaan järjestykseen, jotta tärkeimmät tulevat huipulle
+imp_df <- imp_df %>% arrange(Importance)
+imp_df$Variable <- factor(imp_df$Variable, levels = imp_df$Variable)
+
+# 3. Piirretään kuvio ggplot2:lla
+ggplot(imp_df, aes(x = Importance, y = Variable)) +
+  geom_segment(aes(x = 0, xend = Importance, y = Variable, yend = Variable), color = "grey70") +
+  geom_point(size = 2.5, color = "black") +
+  labs(
+    x = "Keskimääräinen tarkkuuden lasku",
+    y = "Selittävät muuttujat",
+    title = ""
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    # TÄSSÄ SÄÄDÄT MUUTTUJIEN TEKSTIKOKOA (pienennä tai suurenna tarvittaessa)
+    axis.text.y = element_text(size = 9),
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 13)
+  )
+
+
