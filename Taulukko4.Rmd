@@ -1,0 +1,133 @@
+## ----Taulukko 4,results = 'asis'-----------------
+
+# Breimanin teoriaan perustuva tarkastelu eri mtry-arvoilla (q):
+# estimoidaan metsän voimakkuus (t) ja puiden välinen korrelaatio (rho)
+# OOB-marginaalien avulla (funktio rho_bar).
+# Lasketaan myös suhde rho/t^2 ja Breimanin yleistysvirheen yläraja.
+# Tulokset ovat 20 siemenluvun keskiarvoja.
+
+
+
+set.seed(1)
+
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATmm,Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+dataAnalysis = dataAnalysis[-17]
+
+vars21 <- c("Gender","Age","Height","Weight","BMI","BF","MVC",
+            "MG_Area","LG_Area","SOL_Area","AT_Thickness",
+            "MG_subtendon_length","LG_subtendon_length","SOL_subtendon_length",
+            "Tibia_length_I","Tibia_length_O",
+            "AT_moment_arm","Ankle_Cal","Foot_moment_arm",
+            "AT_Moment_arm_norm_to_tibia","AT_Moment_arm_norm_to_height")
+
+
+# 1. Alkuperäinen laskentakoodisi
+rho_bar <- function(rf, dat, xvars) {
+  y   <- dat$Group; lev <- levels(y); N <- nrow(dat); K <- rf$ntree
+  ind <- predict(rf, dat[, xvars], predict.all = TRUE)$individual    # N x K, puiden ennusteet
+  ind <- matrix(as.character(ind), nrow = N)                         # jos näkyy 1/2/3, käytä lev[ind]
+  oob <- (rf$inbag == 0)                                             # N x K, vaatii keep.inbag = TRUE
+
+  # 1) OOB-äänten osuudet ja paras väärä luokka
+  Q   <- sapply(lev, function(l) rowSums((ind == l) & oob) / rowSums(oob))
+  Qw  <- Q; Qw[cbind(seq_len(N), as.integer(y))] <- -Inf
+  jhat <- max.col(Qw, ties.method = "first")
+
+  # 2) marginaalit ja voimakkuus
+  correct <- (ind == matrix(as.character(y), N, K))
+  wrong   <- (ind == matrix(lev[jhat], N, K))
+  rmg     <- correct * 1 - wrong * 1                                 # raakamarginaali {-1,0,1}
+  mr_i    <- rowSums(rmg * oob) / rowSums(oob)
+  t_hat   <- mean(mr_i)
+  var_mr  <- mean((mr_i - t_hat)^2)
+
+  # 3) puukohtaiset keskihajonnat
+  Nb  <- colSums(oob)
+  p1  <- colSums(correct & oob) / Nb
+  p2  <- colSums(wrong   & oob) / Nb
+  sd_b <- sqrt(p1 + p2 - (p1 - p2)^2)
+
+  # 4) korrelaation keskiarvo
+  c(t_hat = t_hat, rho_bar = var_mr / mean(sd_b)^2)
+}
+
+grid <- c(2, 4, 7, 10, 14, 21)
+form <- as.formula(paste("Group ~", paste(vars21, collapse = "+")))
+
+res <- t(sapply(grid, function(mt) {
+  rowMeans(sapply(1:20, function(s) {
+    set.seed(s)
+    rf <- randomForest(form, dataAnalysis, ntree = 2000, mtry = mt, keep.inbag = TRUE,
+                       strata = dataAnalysis$Group, sampsize =rep(10,3))
+    r <- rho_bar(rf, dataAnalysis, vars21)
+    c(oob = unname(rf$err.rate[2000, "OOB"]), t_hat = r[["t_hat"]], rho_bar = r[["rho_bar"]])
+  }))
+}))
+
+rownames(res) <- grid
+res <- cbind(res,
+             ratio = res[, "rho_bar"] / res[, "t_hat"]^2,                        # ρ̄ / t²
+             bound = res[, "rho_bar"] * (1 - res[, "t_hat"]^2) / res[, "t_hat"]^2) # Breimanin yläraja
+
+# 2. Muotoilu kable-taulukoksi R Markdowniin
+res_df <- as.data.frame(round(res, 3))
+
+# Siirretään rivinimet (grid-arvot) omaksi m-sarakkeekseen
+res_df <- cbind(m = rownames(res), res_df)
+
+# Sarakkeiden nimien määrittely suomeksi (ensimmäisenä sarakkeena on nyt "$m$")
+colnames(res_df) <- c("$q$",
+                      "OOB-virhe",
+                      "Voimakkuus ($\\hat{t}$)",
+                      "Korrelaatio ($\\hat{\\bar{\\rho}}$)",
+                      "Suhde ($\\frac{\\hat{\\bar{\\rho}}}{\\hat{t}^2}$)",
+                      "Yläraja ($\\frac{\\hat{\\bar{\\rho}}(1-\\hat{t}^2)}{\\hat{t}^2}$)")
+
+# Tulostus kableExtra-muotoilulla (row.names = FALSE jättää ylimääräiset rivinumerot pois)
+kable(res_df,
+      caption = "Laukutusvirhe, voimakkuus ja korrelaatio ovat 20 siemenluvun keskiarvoja ($n_{\\text{tree}}=2000$, tasapainotettu otanta $n_k=10$ havaintoa luokkaa kohti). Suhde ja yläraja on laskettu keskiarvoistetuista voimakkuudesta $\\hat{t}$ ja korrelaation keskiarvon estimaatista $\\hat{\\bar\\rho}$",
+      booktabs = TRUE,
+      escape = FALSE,
+      align = "c",
+      row.names = FALSE) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"), full_width = FALSE)
+
+
