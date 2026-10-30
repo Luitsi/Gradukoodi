@@ -1,0 +1,105 @@
+## ----Kuvio 7, fig.cap='Tavallisen satunnaismetsän sekaannusmatriisi. Diagonaalilla oikein luokitellut luokat ja muualla väärinluokitellut. Mallin laukutusvirhe ($ERR_{oob}$) on noin 26.9%.', fig.align='center'----
+
+# Sovitetaan tavallinen satunnaismetsä ja muodostetaan sen OOB-sekaannusmatriisi.
+# Piirretään matriisi lämpökarttana; y-akselin nimiöissä näkyy luokkakohtainen
+# virheprosentti.
+
+set.seed(1)
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Gender"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_subtendon_length"
+names(data)[14] <- "LG_subtendon_length"
+names(data)[15] <- "SOL_subtendon_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_moment_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_moment_arm"
+names(data)[26] <- "AT_Moment_arm_norm_to_tibia"
+names(data)[27] <- "AT_Moment_arm_norm_to_height"
+names(data)[28] <- "Group" #Terve, Tendino, repeämä
+
+
+
+data$Group[data$Group == '2'] = 3
+data$Group[data$Group == '1'] = 2
+data$Group[data$Group == '0'] = 1
+
+data$Gender = factor(data$Gender, levels = c(1,2), labels=c("Female","Male"))
+data$Group = factor(data$Group, levels = c(1,2,3))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+dataAnalysis<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length,Skin_ATcm,Skin_ATmm, Tibia_average))
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+form = as.formula(paste("Group~",paste(names(dataAnalysis[,1:21]),collapse="+")))
+RF.fit<-randomForest(form,
+                     ntree = 2000,
+                     mtry = sqrt(length(dataAnalysis)),
+                     importance = TRUE,
+                     keep.forest = TRUE,
+                     prox = TRUE,
+                     data=dataAnalysis)
+
+
+
+cm <- RF.fit$confusion[,-ncol(RF.fit$confusion)]
+
+cm_df <- as.data.frame(as.table(cm))
+
+colnames(cm_df) <- c("Todellinen", "Ennustettu", "Lukumäärä")
+
+cm_df$Todellinen <- factor(cm_df$Todellinen, levels=rev(levels(cm_df$Todellinen)))
+
+
+#TÄSSÄ ON SEKAANNUSMATRIISIN KUVA (tosi hyvä)
+
+
+# 1. Haetaan sekaannusmatriisi ja virheet
+conf_mat <- RF.fit$confusion
+# Haetaan virhesarake (viimeinen sarake)
+class_errors <- conf_mat[, "class.error"]
+# Muutetaan prosenteiksi ja pyöristetään
+error_labels <- paste0(round(class_errors * 100, 1), " %")
+
+# 2. Luodaan nimet, joissa on virheprosentti mukana
+luokat_nimet <- c("1" = "Terve", "2" = "Tendino", "3" = "repeämä")
+y_akseli_labels <- setNames(paste0(luokat_nimet, "\n(Virhe: ", error_labels, ")"), names(luokat_nimet))
+
+# 3. Piirretään kuvaaja (käyttäen aiempaa log-asteikkoa)
+ggplot(cm_df, aes(x = Ennustettu, y = Todellinen, fill = Lukumäärä)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = Lukumäärä,
+  ),
+  size = 5, fontface = "bold", show.legend = FALSE) +
+  scale_color_manual(values = c("black", "white")) +
+
+  # Käytetään logaritmista skaalaa, jotta pienet erot näkyvät
+  scale_fill_gradient(low = "#e0f3f8", high = "#b10026") +
+
+  # Muutetaan akselien nimet
+  scale_x_discrete(position = "top", labels = luokat_nimet) +
+  scale_y_discrete(labels = y_akseli_labels) + # Tässä tulee virheprosentti mukaan
+
+  coord_fixed() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        plot.subtitle = element_text(hjust = 0.5, face = "italic"),
+        axis.text = element_text(size = 11, color = "black"),
+        panel.grid = element_blank())
+
+
