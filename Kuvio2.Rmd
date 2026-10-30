@@ -1,0 +1,77 @@
+## ----Kuvio 2,echo=FALSE,fig.width=18, fig.height = 18,fig.fullwidth=TRUE,out.width="100%",,fig.cap='Aineistosta valittujen selittävien muuttujien väliset yhteisjakaumat. Oranssilla esitetään repeämä-luokan havainnot, violetilla tendinopatia ja mustalla  terve-luokan. Miesten havainnot esitetään kolmioilla ja naisten palloilla.', fig_align = 'left'----
+
+```{r Kuvio 2,echo=FALSE,fig.width=18, fig.height = 18,fig.fullwidth=TRUE,out.width="100%",,fig.cap='Aineistosta valittujen selittävien muuttujien väliset yhteisjakaumat. Oranssilla esitetään repeämä-luokan havainnot, violetilla tendinopatia ja mustalla  terve-luokan. Miesten havainnot esitetään kolmioilla ja naisten palloilla.', fig_align = 'left'}
+
+# Valitaan 8 keskeistä selittävää muuttujaa ja piirretään niiden yhteisjakaumat
+# GGally::ggpairs-funktiolla: väri = luokka, muoto = sukupuoli.
+# Vain alakolmio näytetään (pisteparvet), ja legenda on erikseen määritelty.
+
+set.seed(1)
+data<-as.data.frame(read_xlsx("C:/Users/jarvl/OneDrive - Jyväskylän yliopisto/Graduhommat/Achilles_resultmaster_LukasJärvinen.xlsx"))
+
+names(data)[2] <- "Sukupuoli"
+names(data)[5] <- "Weight"
+names(data)[7] <- "BF"
+names(data)[9] <- "MG_Area"
+names(data)[10] <- "LG_Area"
+names(data)[11] <- "SOL_Area"
+names(data)[12] <- "AT_Thickness"
+names(data)[13] <- "MG_ST_length"
+names(data)[14] <- "LG_ST_length"
+names(data)[15] <- "SOL_ST_length"
+names(data)[16] <- "Tibia_length_I"
+names(data)[17] <- "Tibia_length_O"
+names(data)[19] <- "L_Leg_length"
+names(data)[20] <- "R_Leg_length"
+names(data)[21] <- "Skin_ATcm"
+names(data)[22] <- "AT_M_arm"
+names(data)[24] <- "Skin_ATmm"
+names(data)[25] <- "Foot_M_arm"
+names(data)[26] <- "AT_M_arm_norm_to_tibia"
+names(data)[27] <- "AT_M_arm_norm_to_height"
+names(data)[28] <- "Luokka" #Terve, Tendino, repeämä
+
+
+data$Luokka[data$Luokka == '2'] = 3
+data$Luokka[data$Luokka == '1'] = 2
+data$Luokka[data$Luokka == '0'] = 1
+
+data$Sukupuoli = factor(data$Sukupuoli, levels = c(1,2), labels=c("Nainen","Mies"))
+data$Luokka = factor(data$Luokka, levels = c(1,2,3), labels=c("Terve","Tendinopatia","Repeämä"))
+
+#Tämä on tehty korrelaatiorakenteen perusteella. Poistetaan ne vahvasti keskenään korreloivat muuttujat.
+data<- data %>%
+  dplyr::select(-c(ID, L_Leg_length, R_Leg_length))
+
+dataAnalysis <- data[,c("AT_Thickness","Age","Foot_M_arm",
+                        "SOL_ST_length","SOL_Area","LG_ST_length",
+                        "MVC","MG_Area","Sukupuoli","Luokka")]
+
+dataAnalysis <- na.omit(dataAnalysis)
+
+dataAnalysis <- as.data.frame(dataAnalysis)
+
+p1 = ggpairs(dataAnalysis[, c("AT_Thickness","Age","Foot_M_arm",
+                        "SOL_ST_length","SOL_Area","LG_ST_length",
+                        "MVC","MG_Area","Sukupuoli","Luokka")],
+        mapping = aes(color = Luokka, shape = Sukupuoli),
+        legend = grab_legend(
+          ggplot(dataAnalysis, aes(x = Age, y = MVC, color = Luokka, shape = Sukupuoli)) +
+            geom_point() +
+            scale_color_viridis_d(option = "magma", end = 0.8) +
+            theme (legend.title = element_text(size = 22, face = "bold"),
+              legend.text = element_text(size = 22)                  
+            )
+        ),
+        columns = 1:8,
+        diag = list(continuous = "blankDiag"),
+        upper = "blank",
+        lower = list(continuous = wrap("points", alpha = 0.6, size = 2.5))) +
+  scale_shape_manual(values = c("Nainen" = 16, "Mies" = 17)) +
+  scale_color_viridis_d(option = "magma", end = 0.8) +
+  theme(
+
+        strip.text = element_text(size = 16, face = "bold"),axis.text = element_text(size =rel(0.5)))+theme_bw(base_size=21)
+
+p1
+```
