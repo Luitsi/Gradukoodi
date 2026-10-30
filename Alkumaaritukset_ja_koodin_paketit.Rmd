@@ -1,5 +1,5 @@
 ###### ALKUMÄÄRITYKSET #######
-
+```{r setup-packages, include=FALSE}
 # Dokumentin parametrit (projektin nimi, ohjelma, kappalevälit) ja
 # R-koodilohkojen yleiset oletusasetukset: koodia ei näytetä, kuvat keskitetään
 # ja niiden oletuskoko on 7 x 5 tuumaa.
@@ -54,4 +54,4 @@ library(gtsummary)
 library(e1071)   
 library(RWeka)   
 library(pdp)
-
+```
